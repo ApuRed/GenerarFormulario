@@ -1,5 +1,5 @@
 {
-	"name": "jparedes/generar-formulario",
+	"name": "apured/generar-formulario",
 	"description": "Generador de Formularios basado en DB o Modelo",
 	"type": "project",
 	"require": {
@@ -12,12 +12,12 @@
 	},
 	"autoload": {
 		"psr-4": {
-			"FaredCesar\\GenerarFormulario\\": "src"
+			"ApuRed\\GenerarFormulario\\": "src"
 		}
 	},
 	"autoload-dev": {
 		"psr-4": {
-			"FaredCesar\\GenerarFormulario\\Tests\\": "tests"
+			"ApuRed\\GenerarFormulario\\Tests\\": "tests"
 		}
 	},
 	"license": "MIT",
@@ -36,7 +36,7 @@
                 "ApuRed\\GenerarFormulario\\GenerarFormularioServiceProvider"
             ],
             "aliases": {
-                "GenerarFormulario": "FaredCesar\\GenerarFormulario\\Facades\\Formgenerator"
+                "GenerarFormulario": "ApuRed\\GenerarFormulario\\Facades\\Formgenerator"
             }
         }
     },

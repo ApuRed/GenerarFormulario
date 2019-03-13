@@ -1,6 +1,6 @@
 <?php
 
-namespace FaredCesar\ GenerarFormulario;
+namespace ApuRed\ GenerarFormulario;
 
 use Illuminate\ Support\ ServiceProvider;
 

@@ -1,5 +1,5 @@
 <?php 
-namespace FaredCesar\ GenerarFormulario;
+namespace ApuRed\ GenerarFormulario;
 use BadMethodCallException;
 use DateTime;
 use Illuminate\Contracts\Routing\UrlGenerator;

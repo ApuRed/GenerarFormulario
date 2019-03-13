@@ -1,4 +1,4 @@
-<?php namespace FaredCesar\ GenerarFormulario\Facades;
+<?php namespace ApuRed\ GenerarFormulario\Facades;
 
 use Illuminate\Support\Facades\Facade;
 
