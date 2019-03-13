@@ -190,7 +190,7 @@ class GenerarFormulario{
     protected function getFields($table)
     {
         $field_names = array();
-        $columns = DB::select("SHOW COLUMNS FROM `" . strtolower($table) . "`");
+        $columns = DB::select("SHOW COLUMNS FROM `" . $table . "`");
         foreach ($columns as $c) {
             $field = $c->Field;
             $field_names[$field] = $field;
