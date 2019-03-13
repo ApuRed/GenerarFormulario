@@ -15,11 +15,6 @@
 			"ApuRed\\GenerarFormulario\\": "src"
 		}
 	},
-	"autoload-dev": {
-		"psr-4": {
-			"ApuRed\\GenerarFormulario\\Tests\\": "tests"
-		}
-	},
 	"license": "MIT",
 	"homepage": "https://apured.com",
     "support": {
