@@ -36,7 +36,7 @@ class GenerarFormulario{
             $table      = $model;
             $fields     = $this->getFields($model);
         } else {
-            $table      = $model->getTable();
+            $table      = $model->table;
             $fields     = $model->toArray();
         }
         $columns    = DB::getDoctrineSchemaManager()->listTableDetails($table)->getColumns();
