@@ -295,6 +295,7 @@ class GenerarFormulario {
 				'deleted_at',
 				'password'
 			),
+			'showGroup' => true,
 			'showLabels' => true,
 			'types' => array(
 				'password' => 'password',
