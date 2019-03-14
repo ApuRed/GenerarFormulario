@@ -69,9 +69,9 @@ class GenerarFormulario {
 			/**
 			 * Check for wildcards: *
 			 */
-			if ( empty( $extras ) ) {
+			/*if ( empty( $extras ) ) {
 				$extras = $wildcards;
-			}
+			}*/
 			if ( !in_array( $fieldName, $this->getSettings( 'exclude' ) ) ) {
 				$type = $this->getSettings( 'types', $fieldName );
 				if ( !empty( $type ) ) {
