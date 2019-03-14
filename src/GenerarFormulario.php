@@ -1,286 +1,326 @@
-<?php 
+<?php
 namespace ApuRed\ GenerarFormulario;
 use BadMethodCallException;
 use DateTime;
-use Illuminate\Contracts\Routing\UrlGenerator;
-use Illuminate\Contracts\Session\Session;
-use Illuminate\Contracts\View\Factory;
-use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
-use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\App;
-use Illuminate\Support\HtmlString;
-use Illuminate\Support\Traits\Macroable;
+use Illuminate\ Contracts\ Routing\ UrlGenerator;
+use Illuminate\ Contracts\ Session\ Session;
+use Illuminate\ Contracts\ View\ Factory;
+use Illuminate\ Foundation\ Http\ Middleware\ ConvertEmptyStringsToNull;
+use Illuminate\ Http\ Request;
+use Illuminate\ Support\ Arr;
+use Illuminate\ Support\ Collection;
+use Illuminate\ Support\ Facades\ App;
+use Illuminate\ Support\ HtmlString;
+use Illuminate\ Support\ Traits\ Macroable;
 
-use Collective\Html\FormBuilder as FormBuilder;
-use Collective\Html\HtmlBuilder as HtmlBuilder;
+use Collective\ Html\ FormBuilder as FormBuilder;
+use Collective\ Html\ HtmlBuilder as HtmlBuilder;
 use DB;
-class GenerarFormulario{
-    protected $settings;
-    protected $form;
+class GenerarFormulario {
+	protected $settings;
+	protected $form;
 	protected $request;
 	protected $html;
 	protected $url;
-    protected $view;
-    protected $csrfToken;
-	
-    public function __construct(HtmlBuilder $html, UrlGenerator $url, Factory $view, $csrfToken, Request $request = null)
-    {
-        $this->form = new FormBuilder($html,$url,$view,$csrfToken, $request);
-    }
-    public function generate($model, $options = array())
-    {
-        $fields = array();
-        if ( ! is_object($model)){
-            $table      = $model;
-            $fields     = $this->getFields($model);
-        } else {
-            $table      = $model->table;
-            $fields     = $model->toArray();
-        }
-        $columns    = DB::getDoctrineSchemaManager()->listTableDetails($table)->getColumns();
-        $this->setSettings($options);
-        /**
-         * Loop through all the fields from the model
-         */
-        foreach ($fields as $fieldName => $value) {
-            $value = (isset($value) AND !empty($value)) ? $value : false;
-            $extras = $this->getSettings('extras', $fieldName);
-            $wildcards = $this->getSettings('extras', '*');
-            // Detect a global Bootstrap 3 class [form-control] on input fields.
-            // Flagging a '*' => ['class' => 'form-control ex1 ex2'] will set all fields
-            // to include these classes, thus over-riding all other "extras" that would
-            // otherwise apply to non-specified fields. This feature is perfect for Bootstrap
-            // 3 users but it breaks down slightly. I'd love to find a better way to implement this.
-            // Revisit. 
-            if( isset($wildcards['class']) )
-            {
-                if( preg_match("/(form-control)/", $wildcards['class']) == true )
-                {
-                    if( isset($extras['class']) )
-                    {
-                        if( preg_match("/(form-control)/", $extras['class']) == false )
-                            $extras['class'] .= ' form-control';
-                    }
-                    elseif ( !isset($extras['class']) )
-                    {
-                        $extras['class'] = '';
-                        if ( preg_match("/(form-control)/", $extras['class']) == false )
-                            $extras['class'] = 'form-control';
-                    }
-                }
-            }
-            /**
-             * Check for wildcards: *
-             */
-            if (empty($extras)) {
-                $extras = $wildcards;
-            }
-            if ( ! in_array($fieldName, $this->getSettings('exclude'))) {
-                $type = $this->getSettings('types', $fieldName);
-                if ( ! empty($type)) {
-                    if (isset($type['type'])) {
-                        $type = $type['type'];
-                    }
-                }
-                if ( ! isset($type) OR empty($type)) {
-                    $dataType = $columns[$fieldName]->getType()->getName();
-                    $type = $this->getInputType($dataType, $fieldName);
-                }
-                switch ($type) {
-                    case 'hidden':
-                        if ($this->getContentBefore($fieldName))
-                            $data[] = $this->getContentBefore($fieldName);
-                        if ($this->getSettings('types', $fieldName, 'value'))
-                            $data[] = $this->form->input($type, $fieldName, $this->getSettings('types', $fieldName, 'value'), $extras);
-                        else
-                            $data[] = $this->form->input($type, $fieldName, null, $extras);
-                        if ($this->getContentAfter($fieldName))
-                            $data[] = $this->getContentAfter($fieldName);
-                        break;
-                    case 'checkbox':
-                        if ($this->getContentBefore($fieldName))
-                            $data[] = $this->getContentBefore($fieldName);
-                        if ($this->getSettings('showLabels')) {
-                            $data[] = "<label class='checkbox'>";
-                        }
-                        $data[] = $this->form->checkbox($fieldName, null, null, $extras) . $this->getLabelText($fieldName);
-                        if ($this->getSettings('showLabels')) {
-                            $data[] = "</label>";
-                        }
-                        if ($this->getContentAfter($fieldName))
-                            $data[] = $this->getContentAfter($fieldName);
-                        break;
-                    case 'radio':
-                        if ($this->getContentBefore($fieldName))
-                            $data[] = $this->getContentBefore($fieldName);
-                        if ($this->getSettings('showLabels')) {
-                            $data[] = "<label class='radio'>";
-                        }
-                        $data[] = $this->form->radio($fieldName, null, null, $extras) . $this->getLabelText($fieldName);
-                        if ($this->getSettings('showLabels')) {
-                            $data[] = "</label>";
-                        }
-                        if ($this->getContentAfter($fieldName))
-                            $data[] = $this->getContentAfter($fieldName);
-                        break;
-                    case 'date':
-                        if ($this->getContentBefore($fieldName))
-                            $data[] = $this->getContentBefore($fieldName);
-                        if ($this->getSettings('showLabels')) {
-                            $data[] = $this->form->label($fieldName, $this->getLabelText($fieldName) . ':');
-                        }
-                        $data[] = $this->form->input('date', $fieldName, date('Y-m-d', strtotime($value)), $extras);
-                        if ($this->getContentAfter($fieldName))
-                            $data[] = $this->getContentAfter($fieldName);
-                        break;
-                    case 'time':
-                        if ($this->getContentBefore($fieldName))
-                            $data[] = $this->getContentBefore($fieldName);
-                        if ($this->getSettings('showLabels')) {
-                            $data[] = $this->form->label($fieldName, $this->getLabelText($fieldName) . ':');
-                        }
-                        $data[] = $this->form->input('time', $fieldName, date('H:i:s', strtotime($value)), $extras);
-                        if ($this->getContentAfter($fieldName))
-                            $data[] = $this->getContentAfter($fieldName);
-                        break;
-                    case 'textarea':
-                        if ($this->getContentBefore($fieldName))
-                            $data[] = $this->getContentBefore($fieldName);
-                        if ($this->getSettings('showLabels')) {
-                            $data[] = $this->form->label($fieldName, $this->getLabelText($fieldName) . ':');
-                        }
-                        $data[] = $this->form->textarea($fieldName, null, $extras);
-                        if ($this->getContentAfter($fieldName))
-                            $data[] = $this->getContentAfter($fieldName);
-                        break;
-                    case 'select':
-                        if ($this->getContentBefore($fieldName))
-                            $data[] = $this->getContentBefore($fieldName);
-                        if ($this->getSettings('showLabels')) {
-                            $data[] = $this->form->label($fieldName, $this->getLabelText($fieldName) . ':');
-                        }
-                        $data[] = $this->form->select($fieldName, $this->getSettings('types', $fieldName, 'options'), null, $extras);
-                        if ($this->getContentAfter($fieldName))
-                            $data[] = $this->getContentAfter($fieldName);
-                        break;
-                    default:
-                        if ($this->getContentBefore($fieldName))
-                            $data[] = $this->getContentBefore($fieldName);
-                        if ($this->getSettings('showLabels')) {
-                            $data[] = $this->form->label($fieldName, $this->getLabelText($fieldName) . ':');
-                        }
-                        $data[] = $this->form->input($type, $fieldName, null, $extras);
-                        if ($this->getContentAfter($fieldName))
-                            $data[] = $this->getContentAfter($fieldName);
-                        break;
-                }
-            }
-        }
-        /**
-         * Check if we need to show the submit button
-         */
-        if ($this->getSettings('submit', 'show')) {
-            $data[] = $this->form->label('submit', '&nbsp;'); // get some space above the button
-            $data[] = $this->form->submit($this->getSettings('submit', 'text'), array('class' => $this->getSettings('submit', 'class')));
-        }
-        return trim(implode(PHP_EOL, $data));
-    }
-    protected function getFields($table)
-    {
-        $field_names = array();
-        $columns = DB::select("SHOW COLUMNS FROM `" . $table . "`");
-        foreach ($columns as $c) {
-            $field = $c->Field;
-            $field_names[$field] = $field;
-        }
-        return $field_names;
-    }
-    protected function getLabelText($fieldName)
-    {
-        $label = $this->getSettings('extras', $fieldName, 'label');
-        if (isset($label) AND !empty($label)) {
-            return $this->getSettings('extras', $fieldName, 'label');
-        }
-        return ucwords(str_replace("_", " ", $fieldName));
-    }
-    protected function getContentBefore($fieldName)
-    {
-        $content = $this->getSettings('extras', $fieldName, 'content_before');
-        $wildcardContent = $this->getSettings('extras', '*', 'content_before');
-        if (isset($wildcardContent) AND !empty($wildcardContent)) {
-          $content = (isset($content) AND !empty($content)) ? array_push($content, $wildcardContent) : $wildcardContent;
-        }
-        
-        if (isset($content) AND !empty($content)) {
-            return $content;
-        }
-    }
-    protected function getContentAfter($fieldName)
-    {
-        $content = $this->getSettings('extras', $fieldName, 'content_after');
-        $wildcardContent = $this->getSettings('extras', '*', 'content_after');
-        if (isset($wildcardContent) AND !empty($wildcardContent)) {
-          $content = (isset($content) AND !empty($content)) ? array_push($wildcardContent, $content) : $wildcardContent;
-        }
-        if (isset($content) AND !empty($content)) {
-            return $content;
-        }
-    }
-    protected function getInputType($dataType, $name)
-    {
-        $lookup = array(
-            'string'  => 'text',
-            'float'   => 'text',
-            'date'    => 'text',
-            'text'    => 'textarea',
-            'boolean' => 'checkbox'
-        );
-        return array_key_exists($dataType, $lookup)
-            ? $lookup[$dataType]
-            : 'text';
-    }
-    /**
-     * set the settings
-     * @param array $options options set by the user in the form itself
-     */
-    protected function setSettings($options)
-    {
-        $settings = array(
-            'exclude'       => array(
-                'id',
-                'created_at',
-                'updated_at',
-                'deleted_at',
-                'password'
-            ),
-            'showLabels'    => true,
-            'types'         => array(
-                'password'  => 'password',
-                'email'     => 'email'
-            ),
-            'submit'        => array(
-                'show'      => true,
-                'text'      => 'Submit',
-                'class'     => 'btn btn-success',
-            )
-        );
-        $this->settings = array_merge($settings, $options);
-    }
-    /**
-     * get the settings
-     * @return array settings
-     */
-    protected function getSettings()
-    {
-        $stngs = $this->settings;
-        foreach (func_get_args() as $arg) {
-            if ( ! is_array($stngs) OR ! is_scalar($arg) OR ! isset($stngs[$arg])) {
-                return array();
-            }
-            $stngs = $stngs[$arg];
-        }
-        return $stngs;
-    }
+	protected $view;
+	protected $csrfToken;
+
+	public
+	function __construct( HtmlBuilder $html, UrlGenerator $url, Factory $view, $csrfToken, Request $request = null ) {
+		$this->form = new FormBuilder( $html, $url, $view, $csrfToken, $request );
+	}
+	public
+	function generate( $model, $options = array() ) {
+		$fields = array();
+		if ( !is_object( $model ) ) {
+			$table = $model;
+			$fields = $this->getFields( $model );
+		} else {
+			$table = $model->table;
+			$fields = $model->toArray();
+		}
+		$columns = DB::getDoctrineSchemaManager()->listTableDetails( $table )->getColumns();
+		$this->setSettings( $options );
+		/**
+		 * Loop through all the fields from the model
+		 */
+		foreach ( $fields as $fieldName => $value ) {
+			$value = ( isset( $value )AND!empty( $value ) ) ? $value : false;
+			$extras = $this->getSettings( 'extras', $fieldName );
+			$wildcards = $this->getSettings( 'extras', '*' );
+			// Detect a global Bootstrap 3 class [form-control] on input fields.
+			// Flagging a '*' => ['class' => 'form-control ex1 ex2'] will set all fields
+			// to include these classes, thus over-riding all other "extras" that would
+			// otherwise apply to non-specified fields. This feature is perfect for Bootstrap
+			// 3 users but it breaks down slightly. I'd love to find a better way to implement this.
+			// Revisit. 
+			if ( isset( $wildcards[ 'class' ] ) ) {
+				if ( preg_match( "/(form-control)/", $wildcards[ 'class' ] ) == true ) {
+					if ( isset( $extras[ 'class' ] ) ) {
+						if ( preg_match( "/(form-control)/", $extras[ 'class' ] ) == false )
+							$extras[ 'class' ] .= ' form-control';
+					} elseif ( !isset( $extras[ 'class' ] ) ) {
+						$extras[ 'class' ] = '';
+						if ( preg_match( "/(form-control)/", $extras[ 'class' ] ) == false )
+							$extras[ 'class' ] = 'form-control';
+					}
+				}
+			}
+			/**
+			 * Check for wildcards: *
+			 */
+			if ( empty( $extras ) ) {
+				$extras = $wildcards;
+			}
+			if ( !in_array( $fieldName, $this->getSettings( 'exclude' ) ) ) {
+				$type = $this->getSettings( 'types', $fieldName );
+				if ( !empty( $type ) ) {
+					if ( isset( $type[ 'type' ] ) ) {
+						$type = $type[ 'type' ];
+					}
+				}
+				if ( !isset( $type )OR empty( $type ) ) {
+					$dataType = $columns[ $fieldName ]->getType()->getName();
+					$type = $this->getInputType( $dataType, $fieldName );
+				}
+				switch ( $type ) {
+					case 'hidden':
+						if ( $this->getContentBefore( $fieldName ) )
+							$data[] = $this->getContentBefore( $fieldName );
+						if ( $this->getSettings( 'types', $fieldName, 'value' ) )
+							$data[] = $this->form->input( $type, $fieldName, $this->getSettings( 'types', $fieldName, 'value' ), $extras );
+						else
+							$data[] = $this->form->input( $type, $fieldName, null, $extras );
+						if ( $this->getContentAfter( $fieldName ) )
+							$data[] = $this->getContentAfter( $fieldName );
+						break;
+					case 'checkbox':
+						if ( $this->getContentBefore( $fieldName ) )
+							$data[] = $this->getContentBefore( $fieldName );
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "<div class='form-group'>";
+						}
+						if ( $this->getSettings( 'showLabels' ) ) {
+							$data[] = "<label class='checkbox'>";
+						}
+						$data[] = $this->form->checkbox( $fieldName, null, null, $extras ) . $this->getLabelText( $fieldName );
+						if ( $this->getSettings( 'showLabels' ) ) {
+							$data[] = "</label>";
+						}
+						if ( $this->getContentAfter( $fieldName ) ) {
+							$data[] = $this->getContentAfter( $fieldName );
+						}
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "</div>";
+						}
+						break;
+					case 'radio':
+						if ( $this->getContentBefore( $fieldName ) )
+							$data[] = $this->getContentBefore( $fieldName );
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "<div class='form-group'>";
+						}
+						if ( $this->getSettings( 'showLabels' ) ) {
+							$data[] = "<label class='radio'>";
+						}
+						$data[] = $this->form->radio( $fieldName, null, null, $extras ) . $this->getLabelText( $fieldName );
+						if ( $this->getSettings( 'showLabels' ) ) {
+							$data[] = "</label>";
+						}
+						if ( $this->getContentAfter( $fieldName ) ) {
+							$data[] = $this->getContentAfter( $fieldName );
+						}
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "</div>";
+						}
+						break;
+					case 'date':
+						if ( $this->getContentBefore( $fieldName ) )
+							$data[] = $this->getContentBefore( $fieldName );
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "<div class='form-group'>";
+						}
+						if ( $this->getSettings( 'showLabels' ) ) {
+							$data[] = $this->form->label( $fieldName, $this->getLabelText( $fieldName ) . ':' );
+						}
+						$data[] = $this->form->input( 'date', $fieldName, date( 'Y-m-d', strtotime( $value ) ), $extras );
+						if ( $this->getContentAfter( $fieldName ) )
+							$data[] = $this->getContentAfter( $fieldName );
+						break;
+					case 'time':
+						if ( $this->getContentBefore( $fieldName ) )
+							$data[] = $this->getContentBefore( $fieldName );
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "<div class='form-group'>";
+						}
+						if ( $this->getSettings( 'showLabels' ) ) {
+							$data[] = $this->form->label( $fieldName, $this->getLabelText( $fieldName ) . ':' );
+						}
+						$data[] = $this->form->input( 'time', $fieldName, date( 'H:i:s', strtotime( $value ) ), $extras );
+						if ( $this->getContentAfter( $fieldName ) ) {
+							$data[] = $this->getContentAfter( $fieldName );
+						}
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "</div>";
+						}
+						break;
+					case 'textarea':
+						if ( $this->getContentBefore( $fieldName ) )
+							$data[] = $this->getContentBefore( $fieldName );
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "<div class='form-group'>";
+						}
+						if ( $this->getSettings( 'showLabels' ) ) {
+							$data[] = $this->form->label( $fieldName, $this->getLabelText( $fieldName ) . ':' );
+						}
+						$data[] = $this->form->textarea( $fieldName, null, $extras );
+						if ( $this->getContentAfter( $fieldName ) ) {
+							$data[] = $this->getContentAfter( $fieldName );
+						}
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "</div>";
+						}
+						break;
+					case 'select':
+						if ( $this->getContentBefore( $fieldName ) )
+							$data[] = $this->getContentBefore( $fieldName );
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "<div class='form-group'>";
+						}
+						if ( $this->getSettings( 'showLabels' ) ) {
+							$data[] = $this->form->label( $fieldName, $this->getLabelText( $fieldName ) . ':' );
+						}
+						$data[] = $this->form->select( $fieldName, $this->getSettings( 'types', $fieldName, 'options' ), null, $extras );
+						if ( $this->getContentAfter( $fieldName ) ) {
+							$data[] = $this->getContentAfter( $fieldName );
+						}
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "</div>";
+						}
+						break;
+					default:
+						if ( $this->getContentBefore( $fieldName ) )
+							$data[] = $this->getContentBefore( $fieldName );
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "<div class='form-group'>";
+						}
+						if ( $this->getSettings( 'showLabels' ) ) {
+							$data[] = $this->form->label( $fieldName, $this->getLabelText( $fieldName ) . ':' );
+						}
+						$data[] = $this->form->input( $type, $fieldName, null, $extras );
+						if ( $this->getContentAfter( $fieldName ) ) {
+							$data[] = $this->getContentAfter( $fieldName );
+						}
+						if ( $this->getSettings( 'showGroup' ) ) {
+							$data[] = "</div>";
+						}
+						break;
+				}
+			}
+		}
+		/**
+		 * Check if we need to show the submit button
+		 */
+		if ( $this->getSettings( 'submit', 'show' ) ) {
+			$data[] = $this->form->label( 'submit', '&nbsp;' ); // get some space above the button
+			$data[] = $this->form->submit( $this->getSettings( 'submit', 'text' ), array( 'class' => $this->getSettings( 'submit', 'class' ) ) );
+		}
+		return trim( implode( PHP_EOL, $data ) );
+	}
+	protected
+	function getFields( $table ) {
+		$field_names = array();
+		$columns = DB::select( "SHOW COLUMNS FROM `" . $table . "`" );
+		foreach ( $columns as $c ) {
+			$field = $c->Field;
+			$field_names[ $field ] = $field;
+		}
+		return $field_names;
+	}
+	protected
+	function getLabelText( $fieldName ) {
+		$label = $this->getSettings( 'extras', $fieldName, 'label' );
+		if ( isset( $label )AND!empty( $label ) ) {
+			return $this->getSettings( 'extras', $fieldName, 'label' );
+		}
+		return ucwords( str_replace( "_", " ", $fieldName ) );
+	}
+	protected
+	function getContentBefore( $fieldName ) {
+		$content = $this->getSettings( 'extras', $fieldName, 'content_before' );
+		$wildcardContent = $this->getSettings( 'extras', '*', 'content_before' );
+		if ( isset( $wildcardContent )AND!empty( $wildcardContent ) ) {
+			$content = ( isset( $content )AND!empty( $content ) ) ? array_push( $content, $wildcardContent ) : $wildcardContent;
+		}
+
+		if ( isset( $content )AND!empty( $content ) ) {
+			return $content;
+		}
+	}
+	protected
+	function getContentAfter( $fieldName ) {
+		$content = $this->getSettings( 'extras', $fieldName, 'content_after' );
+		$wildcardContent = $this->getSettings( 'extras', '*', 'content_after' );
+		if ( isset( $wildcardContent )AND!empty( $wildcardContent ) ) {
+			$content = ( isset( $content )AND!empty( $content ) ) ? array_push( $wildcardContent, $content ) : $wildcardContent;
+		}
+		if ( isset( $content )AND!empty( $content ) ) {
+			return $content;
+		}
+	}
+	protected
+	function getInputType( $dataType, $name ) {
+		$lookup = array(
+			'string' => 'text',
+			'float' => 'text',
+			'date' => 'text',
+			'text' => 'textarea',
+			'boolean' => 'checkbox'
+		);
+		return array_key_exists( $dataType, $lookup ) ?
+			$lookup[ $dataType ] :
+			'text';
+	}
+	/**
+	 * set the settings
+	 * @param array $options options set by the user in the form itself
+	 */
+	protected
+	function setSettings( $options ) {
+		$settings = array(
+			'exclude' => array(
+				'id',
+				'created_at',
+				'updated_at',
+				'deleted_at',
+				'password'
+			),
+			'showLabels' => true,
+			'types' => array(
+				'password' => 'password',
+				'email' => 'email'
+			),
+			'submit' => array(
+				'show' => true,
+				'text' => 'Submit',
+				'class' => 'btn btn-success',
+			)
+		);
+		$this->settings = array_merge( $settings, $options );
+	}
+	/**
+	 * get the settings
+	 * @return array settings
+	 */
+	protected
+	function getSettings() {
+		$stngs = $this->settings;
+		foreach ( func_get_args() as $arg ) {
+			if ( !is_array( $stngs )OR!is_scalar( $arg )OR!isset( $stngs[ $arg ] ) ) {
+				return array();
+			}
+			$stngs = $stngs[ $arg ];
+		}
+		return $stngs;
+	}
 }
